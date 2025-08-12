@@ -1,0 +1,2276 @@
+﻿<Window x:Class="OpenshiftOPSCenter.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:OpenshiftOPSCenter.App"
+        xmlns:views="clr-namespace:OpenshiftOPSCenter.App.Views"
+        mc:Ignorable="d"
+        Title="Openshift OPS Center" Height="900" Width="1400"
+        WindowStartupLocation="CenterScreen"
+        Closing="Window_Closing">
+    <Window.Resources>
+        <Style x:Key="SidebarButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E0E0E0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="ActiveSidebarButton" TargetType="Button" BasedOn="{StaticResource SidebarButton}">
+            <Setter Property="Background" Value="#E0E0E0"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Navigation Panel -->
+        <StackPanel x:Name="MainSidebar" Grid.Column="0" Background="#F0F0F0">
+            <TextBlock x:Name="CurrentUserText" Margin="10" TextWrapping="Wrap"/>
+            <TextBlock x:Name="FullNameText" Margin="10" TextWrapping="Wrap"/>
+            <Button x:Name="DashboardButton" Content="Dashboard" Height="40" Margin="10" Click="DashboardButton_Click"/>
+            <Button x:Name="ClusterButton" Content="Cluster" Height="40" Margin="10" Click="ClusterButton_Click"/>
+            <Button x:Name="ApplicationsButton" Content="Deployment Management" Height="40" Margin="10" Click="ApplicationsButton_Click"/>
+            <Button x:Name="MonitoringButton" Content="Monitoring" Height="40" Margin="10" Click="MonitoringButton_Click"/>
+            <Button x:Name="UserManagementButton" Content="Benutzerverwaltung" Height="40" Margin="10" Click="UserManagementButton_Click"/>
+            <Button x:Name="SettingsButton" Content="Einstellungen" Height="40" Margin="10" Click="SettingsButton_Click"/>
+        </StackPanel>
+
+        <!-- Applications Navigation Panel -->
+        <StackPanel x:Name="ApplicationsSidebar" Grid.Column="0" Background="#F0F0F0" Visibility="Collapsed">
+            <TextBlock x:Name="ApplicationsUserText" Margin="10" TextWrapping="Wrap"/>
+            <TextBlock x:Name="ApplicationsFullNameText" Margin="10" TextWrapping="Wrap"/>
+            <Button x:Name="HomeButton" Content="Dashboard" Height="40" Margin="10" Click="HomeButton_Click"/>
+            <Button x:Name="AppButton1" Content="Deployments/Pods" Height="40" Margin="10" Click="AppButton1_Click"/>
+            <Button x:Name="AppButton2" Content="Volumes" Height="40" Margin="10" Click="AppButton2_Click"/>
+            <Button x:Name="DeleteUnboundPVsButton" Content="Delete Unbound PV's" Height="40" Margin="10" Click="DeleteUnboundPVsButton_Click"/>
+            <Button x:Name="AppButton3" Content="Multi Project" Height="40" Margin="10" Click="AppButton3_Click"/>
+            <Button x:Name="AppButton4" Content="Create Webserver" Height="40" Margin="10" Click="AppButton4_Click"/>
+            <Button x:Name="AutomationManagerButton" Content="Create Automation Manager" Height="40" Margin="10" Click="AutomationManagerButton_Click"/>
+            <Button x:Name="OISFilesVolumeButton" Content="Create OISFiles Volume" Height="40" Margin="10" Click="OISFilesVolumeButton_Click"/>
+            <Button x:Name="OISFilesOptIotVolumeButton" Content="Create OISFiles OPT/IOT" Height="40" Margin="10" Click="OISFilesOptIotVolumeButton_Click"/>
+            <Button x:Name="FirmwareVolumeButton" Content="Create Firmware Volume" Height="40" Margin="10" Click="FirmwareVolumeButton_Click"/>
+            <Button x:Name="EDHRVolumeButton" Content="Create EDHR Volume" Height="40" Margin="10" Click="EDHRVolumeButton_Click"/>
+            <Button x:Name="SAPConnectivityVolumeButton" Content="SAP Connectivity Volume" Height="40" Margin="10" Click="SAPConnectivityVolumeButton_Click"/>
+            <Button x:Name="AppButton5" Content="Service, Route, Rolebinding" Height="40" Margin="10" Click="AppButton5_Click"/>
+        </StackPanel>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Column="1" Margin="20">
+            <!-- Error Message - Global, wird durch spezifische Meldungen in jedem Content ersetzt -->
+            <TextBlock x:Name="ErrorMessage" Foreground="Red" TextWrapping="Wrap" VerticalAlignment="Top" Visibility="Collapsed"/>
+
+            <!-- Login Content -->
+            <Grid x:Name="LoginContent">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="Willkommen im Openshift OPS Center" FontSize="24" HorizontalAlignment="Center"/>
+                    <TextBox x:Name="FunctionTextBox" Margin="0,20,0,0" Width="200" Height="30" 
+                             ToolTip="Geben Sie Ihre Funktion ein"/>
+                    <Button x:Name="RequestAccessButton" Content="Zugriff anfordern" 
+                            Height="40" Width="200" Margin="0,20,0,0" Click="RequestAccessButton_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Dashboard Content -->
+            <Grid x:Name="DashboardContent" Visibility="Collapsed">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="Willkommen im Openshift OPS Center" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                    <TextBlock Text="Centralized Openshift Function for Employes" 
+                             FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="600"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Cluster Content -->
+            <Grid x:Name="ClusterContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Cluster Verwaltung" FontSize="24" Margin="0,0,0,20"/>
+
+                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Cluster Login -->
+                    <GroupBox Header="Cluster Anmeldung" Grid.Row="0" Margin="0,0,0,20">
+                        <Grid Margin="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="Cluster:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                            <ComboBox x:Name="ClusterComboBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"
+                                    SelectionChanged="ClusterComboBox_SelectionChanged">
+                                <ComboBoxItem Content="DEV" Tag="https://api.de08-lkd10.k8s.it.bbraun.com:6443"/>
+                                <ComboBoxItem Content="QAS" Tag="https://api.de08-lkq10.k8s.it.bbraun.com:6443"/>
+                                <ComboBoxItem Content="PRD" Tag="https://api.de08-lkp10.k8s.it.bbraun.com:6443"/>
+                            </ComboBox>
+
+                            <TextBlock Text="Benutzername:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                            <TextBox x:Name="ClusterUsernameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+
+                            <TextBlock Text="Passwort:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
+                            <PasswordBox x:Name="ClusterPasswordBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5"/>
+
+                            <Button x:Name="ClusterLoginButton" Content="Anmelden" Grid.Row="3" Grid.Column="1" 
+                                    HorizontalAlignment="Right" Width="100" Margin="0,10,0,0"
+                                    Click="ClusterLoginButton_Click"/>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Project Selection -->
+                    <GroupBox Header="Projekt Auswahl" Grid.Row="1" Margin="0,0,0,20">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBox x:Name="ProjectSearchTextBox" Margin="0,0,0,10" 
+                                     TextChanged="ProjectSearchTextBox_TextChanged"
+                                     ToolTip="Projekt suchen..."/>
+
+                            <ListView x:Name="ProjectsListView" Grid.Row="1" Height="200"
+                                    SelectionChanged="ProjectsListView_SelectionChanged">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Projektname" Width="400"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Cluster Status -->
+                    <GroupBox Header="Cluster Status" Grid.Row="2">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="Aktueller Cluster:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                            <TextBlock x:Name="CurrentClusterText" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"/>
+
+                            <TextBlock Text="Aktuelles Projekt:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                            <TextBlock x:Name="CurrentProjectText" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <!-- Applications Content -->
+            <Grid x:Name="ApplicationsContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <TextBlock Text="Deployment Management" FontSize="24" Margin="0,0,0,20"/>
+                
+                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Application Details -->
+                    <GroupBox Header="Funktionen" Grid.Row="0">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="Verfügbare Funktionen:" FontWeight="Bold" Margin="0,0,0,10"/>
+                            
+                            <GroupBox Header="1. Deployments/Pods" Margin="0,0,0,10">
+                                <TextBlock Text="Manage the Deployments from a Specific Project" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+                            
+                            <GroupBox Header="2. Volumes" Margin="0,0,0,10">
+                                <TextBlock Text="Show and Delete Project Specific Persistent Volumes and Volume Claims" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+
+                            <GroupBox Header="3. Delete Unbound PV's" Margin="0,0,0,10">
+                                <TextBlock Text="You can delete all unbound PV's from a specific project." 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>                            
+                            
+                            <GroupBox Header="4. Multi Project" Margin="0,0,0,10">
+                                <TextBlock Text="Start, Stop and Restart Pods from Multiple Projects." 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+                            
+                            <GroupBox Header="5. Create Webserver" Margin="0,0,0,10">
+                                <TextBlock Text="Create a Webserver (Nampespace, Deployment, Route, Service, Secret, Volume)" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+                            
+                            <GroupBox Header="6. Create Automation Manager" Margin="0,0,0,10">
+                                <TextBlock Text="Create a Automation Manager (Logs PV, Persistency PV, Service and Route)" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+
+                            <GroupBox Header="7. Create OISFiles Volume" Margin="0,0,0,10">
+                                <TextBlock Text="Create a OISFiles Volume (PV, PVC and Secret)" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+
+                            <GroupBox Header="8. Create OISFiles OPT/IOT Volume" Margin="0,0,0,10">
+                                <TextBlock Text="Create a OISFiles OPT/IOT Volume (PV, PVC and Secret)" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+
+                            <GroupBox Header="9. Create Firmware Volume" Margin="0,0,0,10">
+                                <TextBlock Text="Create a Firmware Volume (PV, PVC and Secret)" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>
+
+                            <GroupBox Header="10. Create EDHR Volume" Margin="0,0,0,10">
+                                <TextBlock Text="Create a EDHR Volume (PV, PVC and Secret)" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>                            
+
+                            <GroupBox Header="11. Create SAP Connectivity Volume" Margin="0,0,0,10">
+                                <TextBlock Text="Create a SAP Connectivity Volume (PV, PVC and Secret)" 
+                                         TextWrapping="Wrap" Margin="5"/>
+                            </GroupBox>               
+
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <!-- Deployments/Pods Content -->
+            <Grid x:Name="DeploymentsPodsContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Deployments und Pods Verwaltung" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Überwachung und Verwaltung von Deployments und Pods. Zeigt den aktuellen Status, Version und Health-Checks an." 
+                             TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <Grid Grid.Row="1" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="DeploymentCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="RefreshDeploymentsButton" Grid.Column="1" Content="Aktualisieren" 
+                          Width="120" Height="30" Click="RefreshDeploymentsButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Deployments ListView -->
+                    <GroupBox Grid.Row="0" Header="Deployments" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <ListView x:Name="DeploymentsListView" Grid.Row="0" SelectionMode="Extended" SelectionChanged="DeploymentsListView_SelectionChanged">
+                                <ListView.View>
+                                    <GridView x:Name="DeploymentsGridView">
+                                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="300"/>
+                                        <GridViewColumn Header="Replicas" Width="100">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock>
+                                                        <Run Text="{Binding AvailableReplicas}"/> / <Run Text="{Binding Replicas}"/>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Status" Width="120">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="RUNNING">
+                                                                        <Setter Property="Foreground" Value="Green"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="STOP">
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Erstellt am" DisplayMemberBinding="{Binding CreationTimestamp, StringFormat=dd.MM.yyyy HH:mm}" Width="180"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            
+                            <!-- Steuerelemente für einzelne Deployments -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,5" HorizontalAlignment="Left">
+                                <TextBlock Text="Aktionen für ausgewähltes Deployment:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                                <Button x:Name="StartDeploymentButton" Content="Starten" Width="80" Margin="0,0,10,0" Click="StartDeploymentButton_Click"/>
+                                <Button x:Name="StopDeploymentButton" Content="Stoppen" Width="80" Margin="0,0,10,0" Click="StopDeploymentButton_Click"/>
+                                <Button x:Name="RestartDeploymentButton" Content="Neustarten" Width="80" Margin="0,0,10,0" Click="RestartDeploymentButton_Click"/>
+                                <Button x:Name="DeleteDeploymentButton" Content="Löschen" Width="80" Margin="0,0,10,0" Click="DeleteDeploymentButton_Click"/>
+                            </StackPanel>
+                            
+                            <!-- Steuerelemente für die Skalierung -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,5" HorizontalAlignment="Right">
+                                <TextBlock Text="Replicas:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBox x:Name="ReplicasTextBox" Width="50" Margin="0,0,5,0" PreviewTextInput="NumberValidationTextBox"/>
+                                <Button x:Name="ScaleDeploymentButton" Content="Skalieren" Width="80" Click="ScaleDeploymentButton_Click"/>
+                            </StackPanel>
+                            
+                            <!-- Steuerelemente für alle Deployments -->
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0" HorizontalAlignment="Left">
+                                <TextBlock Text="Batch-Aktionen:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                                <Button x:Name="StartAllDeploymentsButton" Content="Alle starten" Width="100" Margin="0,0,10,0" Click="StartAllDeploymentsButton_Click"/>
+                                <Button x:Name="StopAllDeploymentsButton" Content="Alle stoppen" Width="100" Margin="0,0,10,0" Click="StopAllDeploymentsButton_Click"/>
+                                <Button x:Name="DeleteAllDeploymentsButton" Content="Alle löschen" Width="100" Margin="0,0,10,0" Click="DeleteAllDeploymentsButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0"/>
+                    
+                    <!-- Pods ListView -->
+                    <GroupBox Grid.Row="2" Header="Pods">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <ListView x:Name="PodsListView" Grid.Row="0">
+                                <ListView.View>
+                                    <GridView x:Name="PodsGridView">
+                                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="300"/>
+                                        <GridViewColumn Header="Status" Width="120">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="RUNNING">
+                                                                        <Setter Property="Foreground" Value="Green"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="PENDING">
+                                                                        <Setter Property="Foreground" Value="Orange"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="SUCCEEDED">
+                                                                        <Setter Property="Foreground" Value="Blue"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="STOP">
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="UNKNOWN">
+                                                                        <Setter Property="Foreground" Value="Gray"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Node" DisplayMemberBinding="{Binding Node}" Width="250"/>
+                                        <GridViewColumn Header="IP" DisplayMemberBinding="{Binding IP}" Width="150"/>
+                                        <GridViewColumn Header="Erstellt am" DisplayMemberBinding="{Binding CreationTimestamp, StringFormat=dd.MM.yyyy HH:mm}" Width="180"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            
+                            <!-- Steuerelemente für Pods -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Left">
+                                <TextBlock Text="Aktionen für ausgewählten Pod:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                                <Button x:Name="RestartPodButton" Content="Neustarten" Width="100" Margin="0,0,10,0" Click="RestartPodButton_Click"/>
+                                <Button x:Name="DeletePodButton" Content="Löschen" Width="100" Click="DeletePodButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <!-- Volumes Content -->
+            <Grid x:Name="VolumesContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Volume Verwaltung" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Verwaltung von persistenten Volumes und Volume Claims. Konfiguration von Storage-Klassen und Zugriffsmodi." 
+                             TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <Grid Grid.Row="1" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="VolumeCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="RefreshVolumesButton" Grid.Column="1" Content="Aktualisieren" 
+                          Width="120" Height="30" Click="RefreshVolumesButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- PVCs ListView -->
+                    <GroupBox Grid.Row="0" Header="Persistent Volume Claims" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <ListView x:Name="PVCsListView" Grid.Row="0" SelectionMode="Extended">
+                                <ListView.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Löschen" Click="DeletePVCButton_Click"/>
+                                    </ContextMenu>
+                                </ListView.ContextMenu>
+                                <ListView.View>
+                                    <GridView x:Name="PVCsGridView">
+                                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="250"/>
+                                        <GridViewColumn Header="Status" Width="100">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Bound">
+                                                                        <Setter Property="Foreground" Value="Green"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Pending">
+                                                                        <Setter Property="Foreground" Value="Orange"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Lost">
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Volume" DisplayMemberBinding="{Binding VolumeName}" Width="250"/>
+                                        <GridViewColumn Header="Kapazität" DisplayMemberBinding="{Binding Capacity}" Width="100"/>
+                                        <GridViewColumn Header="Modus" DisplayMemberBinding="{Binding AccessModes}" Width="150"/>
+                                        <GridViewColumn Header="Erstellt am" DisplayMemberBinding="{Binding CreationTimestamp, StringFormat=dd.MM.yyyy HH:mm}" Width="180"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            
+                            <!-- Steuerelemente für PVCs -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Left">
+                                <TextBlock Text="Aktionen für ausgewählte PVCs:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                                <Button x:Name="DeletePVCButton" Content="Löschen" Width="100" Margin="0,0,10,0" Click="DeletePVCButton_Click"/>
+                                <Button x:Name="DeleteAllSelectedPVCsButton" Content="Alle ausgewählten löschen" Width="180" Click="DeleteAllSelectedPVCsButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0"/>
+            
+                    <!-- PVs ListView -->
+                    <GroupBox Grid.Row="2" Header="Persistent Volumes">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            
+                            <ListView x:Name="PVsListView" Grid.Row="0">
+                                <ListView.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Löschen" Click="DeletePVButton_Click"/>
+                                    </ContextMenu>
+                                </ListView.ContextMenu>
+                                <ListView.View>
+                                    <GridView x:Name="PVsGridView">
+                                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="250"/>
+                                        <GridViewColumn Header="Status" Width="100">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Bound">
+                                                                        <Setter Property="Foreground" Value="Green"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Available">
+                                                                        <Setter Property="Foreground" Value="Blue"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Released">
+                                                                        <Setter Property="Foreground" Value="Orange"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Kapazität" DisplayMemberBinding="{Binding Capacity}" Width="100"/>
+                                        <GridViewColumn Header="AccessModes" DisplayMemberBinding="{Binding AccessModes}" Width="150"/>
+                                        <GridViewColumn Header="StorageClass" DisplayMemberBinding="{Binding StorageClass}" Width="150"/>
+                                        <GridViewColumn Header="Reclaim Policy" DisplayMemberBinding="{Binding ReclaimPolicy}" Width="120"/>
+                                        <GridViewColumn Header="Claim" DisplayMemberBinding="{Binding ClaimRef}" Width="250"/>
+                                        <GridViewColumn Header="Erstellt am" DisplayMemberBinding="{Binding CreationTimestamp, StringFormat=dd.MM.yyyy HH:mm}" Width="180"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <!-- Delete Unbound PVs Content -->
+            <Grid x:Name="DeleteUnboundPVsContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Ungebundene Volumes löschen" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Anzeige und Verwaltung von ungebundenen persistenten Volumes, die mit dem aktuellen Projekt in Verbindung stehen." 
+                             TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <Grid Grid.Row="1" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="UnboundPVsCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="RefreshUnboundPVsButton" Grid.Column="1" Content="Aktualisieren" 
+                          Width="120" Height="30" Click="RefreshUnboundPVsButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="2">
+                    <!-- PVs ListView -->
+                    <GroupBox Header="Ungebundene Persistent Volumes">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <ListView x:Name="UnboundPVsListView" Grid.Row="0" SelectionMode="Extended">
+                                <ListView.View>
+                                    <GridView x:Name="UnboundPVsGridView">
+                                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="250"/>
+                                        <GridViewColumn Header="Status" Width="100">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Bound">
+                                                                        <Setter Property="Foreground" Value="Green"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Available">
+                                                                        <Setter Property="Foreground" Value="Blue"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Released">
+                                                                        <Setter Property="Foreground" Value="Orange"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Kapazität" DisplayMemberBinding="{Binding Capacity}" Width="100"/>
+                                        <GridViewColumn Header="AccessModes" DisplayMemberBinding="{Binding AccessModes}" Width="150"/>
+                                        <GridViewColumn Header="StorageClass" DisplayMemberBinding="{Binding StorageClass}" Width="150"/>
+                                        <GridViewColumn Header="Reclaim Policy" DisplayMemberBinding="{Binding ReclaimPolicy}" Width="120"/>
+                                        <GridViewColumn Header="Claim" DisplayMemberBinding="{Binding ClaimRef}" Width="250"/>
+                                        <GridViewColumn Header="Erstellt am" DisplayMemberBinding="{Binding CreationTimestamp, StringFormat=dd.MM.yyyy HH:mm}" Width="180"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            
+                            <!-- Steuerelemente für PVs -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Left">
+                                <TextBlock Text="Aktionen für ausgewählte PVs:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                                <Button x:Name="DeleteSelectedUnboundPVsButton" Content="Ausgewählte löschen" Width="150" Margin="0,0,10,0" Click="DeleteSelectedUnboundPVsButton_Click"/>
+                                <Button x:Name="DeleteAllUnboundPVsButton" Content="Alle löschen" Width="120" Click="DeleteAllUnboundPVsButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <!-- Multi Project Content -->
+            <Grid x:Name="MultiProjectContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Multi Project Verwaltung" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Verwaltung von Projekten und Namespaces. Projektübergreifende Operationen und Berechtigungen." 
+                             TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <Grid Grid.Row="1" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktueller Cluster: " FontWeight="Bold"/>
+                        <TextBlock x:Name="MultiProjectCurrentClusterText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="RefreshProjectsButton" Grid.Column="1" Content="Projekte aktualisieren" 
+                          Width="150" Height="30" Click="RefreshProjectsButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Projekteliste mit Suchfeld -->
+                    <GroupBox Grid.Row="0" Header="Verfügbare Projekte" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBox x:Name="MultiProjectSearchTextBox" Grid.Row="0" Margin="0,0,0,10" 
+                                     TextChanged="MultiProjectSearchTextBox_TextChanged"
+                                     ToolTip="Projekte filtern..."/>
+                            
+                            <ListView x:Name="MultiProjectsListView" Grid.Row="1" SelectionMode="Multiple"
+                                      SelectionChanged="MultiProjectsListView_SelectionChanged">
+                                <ListView.View>
+                                    <GridView x:Name="MultiProjectsGridView">
+                                        <GridViewColumn Header="Projektname" DisplayMemberBinding="{Binding Name}" Width="300"/>
+                                        <GridViewColumn Header="Erstellt am" DisplayMemberBinding="{Binding CreationTimestamp, StringFormat=dd.MM.yyyy HH:mm}" Width="180"/>
+                                        <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="120"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <!-- Steuerelemente für Projekte -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10" HorizontalAlignment="Right">
+                        <TextBlock Text="Ausgewählte Projekte: " VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock x:Name="SelectedProjectsCountText" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+                        <Button x:Name="LoadSelectedProjectsButton" Content="Pods anzeigen" Width="120" Click="LoadSelectedProjectsButton_Click"/>
+                    </StackPanel>
+                    
+                    <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0"/>
+                    
+                    <!-- Multi-Projekt Pods -->
+                    <GroupBox Grid.Row="3" Header="Pods in ausgewählten Projekten">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <ListView x:Name="MultiProjectPodsListView" Grid.Row="0">
+                                <ListView.View>
+                                    <GridView x:Name="MultiProjectPodsGridView">
+                                        <GridViewColumn Header="Projekt" DisplayMemberBinding="{Binding Project}" Width="200"/>
+                                        <GridViewColumn Header="Pod Name" DisplayMemberBinding="{Binding Name}" Width="300"/>
+                                        <GridViewColumn Header="Status" Width="120">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="RUNNING">
+                                                                        <Setter Property="Foreground" Value="Green"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="STOP">
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Erstellt am" DisplayMemberBinding="{Binding CreationTimestamp, StringFormat=dd.MM.yyyy HH:mm}" Width="180"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            
+                            <!-- Steuerelemente für Multi-Projekt Pods -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
+                                <Button x:Name="StartAllMultiPodsButton" Content="Alle starten" Width="120" Margin="0,0,20,0" Click="StartAllMultiPodsButton_Click"/>
+                                <Button x:Name="StopAllMultiPodsButton" Content="Alle stoppen" Width="120" Margin="0,0,20,0" Click="StopAllMultiPodsButton_Click"/>
+                                <Button x:Name="RestartAllMultiPodsButton" Content="Alle neustarten" Width="120" Click="RestartAllMultiPodsButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <!-- Create Content -->
+            <Grid x:Name="CreateContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Webserver Erstellung" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Erstellen eines neuen Webserver mit Namespace, ConfigMaps, Route, Secret, Service, PV, PVC und anderen benötigten Ressourcen." 
+                             TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <!-- Fehlermeldung für Webserver -->
+                <TextBlock x:Name="WebserverErrorMessage" Grid.Row="1" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+                
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Namespace Erstellung -->
+                    <GroupBox Header="Namespace erstellen" Grid.Row="0" Margin="0,0,0,15">
+                        <Grid Margin="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Text="Aktuelles Projekt: " Grid.Row="0" Grid.Column="0" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock x:Name="WebserverCurrentProjectText" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"/>
+                            
+                            <TextBlock Text="Neuer Namespace: " Grid.Row="1" Grid.Column="0" Margin="0,10,10,0" VerticalAlignment="Center"/>
+                            <TextBox x:Name="NewNamespaceTextBox" Grid.Row="1" Grid.Column="1" Margin="0,10,10,0" IsReadOnly="True"/>
+                            <Button x:Name="CreateNamespaceButton" Grid.Row="1" Grid.Column="2" Content="Namespace erstellen" Width="160" Margin="0,10,0,0" Click="CreateNamespaceButton_Click"/>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <!-- Webserver Ressourcen -->
+                    <GroupBox Header="Webserver Ressourcen" Grid.Row="1" Margin="0,0,0,15" IsEnabled="False" x:Name="WebserverResourcesGroup">
+                        <Grid Margin="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <!-- Secret Konfiguration -->
+                            <TextBlock Text="SMB Benutzername:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <TextBox x:Name="WebserverUsernameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Text="SMB Passwort:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <PasswordBox x:Name="WebserverPasswordBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+                            
+                            <!-- PV Konfiguration -->
+                            <TextBlock Text="SMB Pfad:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <TextBox x:Name="WebserverSMBPathTextBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Text="Volume Handle:" Grid.Row="3" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <TextBox x:Name="WebserverVolumeHandleTextBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,5"/>
+                            
+                            <!-- Steuerelemente -->
+                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                <Button x:Name="GenerateWebserverYamlButton" Content="YAML generieren" Width="140" Margin="0,0,10,0" Click="GenerateWebserverYamlButton_Click"/>
+                                <Button x:Name="CreateWebserverResourcesButton" Content="Ressourcen erstellen" Width="160" Click="CreateWebserverResourcesButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <!-- YAML Vorschau -->
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="Namespace">
+                            <TextBox x:Name="NamespaceYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="ConfigMap Zertifikate">
+                            <TextBox x:Name="CertConfigMapYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="ConfigMap Nginx">
+                            <TextBox x:Name="NginxConfigMapYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="Route">
+                            <TextBox x:Name="RouteYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="Secret">
+                            <TextBox x:Name="WebserverSecretYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="Service">
+                            <TextBox x:Name="ServiceYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="PersistentVolume">
+                            <TextBox x:Name="WebserverPVYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="PersistentVolumeClaim">
+                            <TextBox x:Name="WebserverPVCYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="ServiceAccount">
+                            <TextBox x:Name="ServiceAccountYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="RoleBinding">
+                            <TextBox x:Name="RoleBindingYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        <TabItem Header="Deployment">
+                            <TextBox x:Name="DeploymentYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+
+            <!-- OISFiles Volume Content -->
+            <Grid x:Name="OISFilesVolumeContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="Create OISFiles Volume" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Bearbeiten der Deployment YAML zum Hinzufügen von OISFiles Volumes und Erstellen von PV, PVC und Secret." 
+                              TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <!-- Fehlermeldung speziell für OISFiles Volume -->
+                <TextBlock x:Name="OISFilesErrorMessage" Grid.Row="1" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+                
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="OISFilesCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="ConfigureYamlButton" Grid.Column="1" Content="YAML konfigurieren" 
+                          Width="160" Height="30" Margin="0,0,10,0" Click="ConfigureYamlButton_Click"/>
+                      
+                    <Button x:Name="ApplyChangesButton" Grid.Column="2" Content="Änderungen anwenden" 
+                          Width="160" Height="30" Click="ApplyChangesButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Original YAML -->
+                        <GroupBox Grid.Column="0" Header="Original Deployment YAML">
+                            <TextBox x:Name="OISFilesOriginalYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     IsReadOnly="True" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+
+                        <!-- Modified YAML -->
+                        <GroupBox Grid.Column="1" Header="Modifizierte Deployment YAML">
+                            <TextBox x:Name="OISFilesModifiedYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+                    </Grid>
+                    
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0" Margin="0,10"/>
+                    
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="PersistentVolume">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolume" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="SMB Source Path:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SMBSourcePathTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="PVNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="PVYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GeneratePVYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GeneratePVYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="PersistentVolumeClaim">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolumeClaim" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="PVC Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="PVCNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="PVCVolumeNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="PVCYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GeneratePVCYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GeneratePVCYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="Secret">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des Secret" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="Secret Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SecretNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Benutzername:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="UsernameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Passwort:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <PasswordBox x:Name="SecretPasswordBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="OISFilesSecretYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateSecretYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateSecretYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+
+            <!-- OISFiles OPT/IOT Volume Content -->
+            <Grid x:Name="OISFilesOptIotVolumeContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="Create OISFiles OPT/IOT Volume" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Bearbeiten der Deployment YAML zum Hinzufügen von OISFiles OPT/IOT Volumes und Erstellen von PV, PVC und Secret." 
+                              TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <!-- Fehlermeldung speziell für OISFiles OPT/IOT Volume -->
+                <TextBlock x:Name="OISFilesOptIotErrorMessage" Grid.Row="1" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+                
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="OISFilesOptIotCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="ConfigureOptIotYamlButton" Grid.Column="1" Content="YAML konfigurieren" 
+                          Width="160" Height="30" Margin="0,0,10,0" Click="ConfigureOptIotYamlButton_Click"/>
+                      
+                    <Button x:Name="ApplyOptIotChangesButton" Grid.Column="2" Content="Änderungen anwenden" 
+                          Width="160" Height="30" Click="ApplyOptIotChangesButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Original YAML -->
+                        <GroupBox Grid.Column="0" Header="Original Deployment YAML">
+                            <TextBox x:Name="OISFilesOptIotOriginalYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     IsReadOnly="True" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+
+                        <!-- Modified YAML -->
+                        <GroupBox Grid.Column="1" Header="Modifizierte Deployment YAML">
+                            <TextBox x:Name="OISFilesOptIotModifiedYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+                    </Grid>
+                    
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0" Margin="0,10"/>
+                    
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="PersistentVolume">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolume" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="SMB Source Path:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SMBOptIotSourcePathTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="PVOptIotNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="PVOptIotYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateOptIotPVYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateOptIotPVYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="PersistentVolumeClaim">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolumeClaim" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="PVC Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="PVCOptIotNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="PVCOptIotVolumeNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="PVCOptIotYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateOptIotPVCYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateOptIotPVCYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="Secret">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des Secret" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="Secret Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SecretOptIotNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Benutzername:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="UsernameOptIotTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Passwort:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <PasswordBox x:Name="SecretOptIotPasswordBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="SecretOptIotYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateOptIotSecretYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateOptIotSecretYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+
+            <!-- EDHR Volume Content -->
+            <Grid x:Name="EDHRVolumeContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="Create EDHR Volume" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Bearbeiten der Deployment YAML zum Hinzufügen von EDHR Volumes und Erstellen von PV, PVC und Secret." 
+                              TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <!-- Fehlermeldung speziell für EDHR Volume -->
+                <TextBlock x:Name="EDHRErrorMessage" Grid.Row="1" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+                
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="EDHRCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="ConfigureEDHRYamlButton" Grid.Column="1" Content="YAML konfigurieren" 
+                          Width="160" Height="30" Margin="0,0,10,0" Click="ConfigureEDHRYamlButton_Click"/>
+                          
+                    <Button x:Name="ApplyEDHRChangesButton" Grid.Column="2" Content="Änderungen anwenden" 
+                          Width="160" Height="30" Click="ApplyEDHRChangesButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Original YAML -->
+                        <GroupBox Grid.Column="0" Header="Original Deployment YAML">
+                            <TextBox x:Name="EDHROriginalYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     IsReadOnly="True" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+
+                        <!-- Modified YAML -->
+                        <GroupBox Grid.Column="1" Header="Modifizierte Deployment YAML">
+                            <TextBox x:Name="EDHRModifiedYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+                    </Grid>
+                    
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0" Margin="0,10"/>
+                    
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="PersistentVolume">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolume" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="SMB Source Path:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="EDHRSMBSourcePathTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="EDHRPVNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="EDHRPVYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateEDHRPVYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateEDHRPVYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="PersistentVolumeClaim">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolumeClaim" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="PVC Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="EDHRPVCNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="EDHRPVCVolumeNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="EDHRPVCYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateEDHRPVCYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateEDHRPVCYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="Secret">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des Secret" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="Secret Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="EDHRSecretNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Benutzername:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="EDHRUsernameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Passwort:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <PasswordBox x:Name="EDHRSecretPasswordBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="EDHRSecretYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateEDHRSecretYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateEDHRSecretYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+
+            <!-- SAP Connectivity Volume Content -->
+            <Grid x:Name="SAPConnectivityVolumeContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="SAP Connectivity Volume" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Bearbeiten der Deployment YAML zum Hinzufügen von SAP Connectivity Volumes und Erstellen von PV, PVC und Secret." 
+                              TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <!-- Fehlermeldung speziell für SAP Connectivity Volume -->
+                <TextBlock x:Name="SAPConnectivityErrorMessage" Grid.Row="1" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+                
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="SAPConnectivityCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="ConfigureSAPYamlButton" Grid.Column="1" Content="YAML konfigurieren" 
+                          Width="160" Height="30" Margin="0,0,10,0" Click="ConfigureSAPYamlButton_Click"/>
+                      
+                    <Button x:Name="ApplySAPChangesButton" Grid.Column="2" Content="Änderungen anwenden" 
+                          Width="160" Height="30" Click="ApplySAPChangesButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Original YAML -->
+                        <GroupBox Grid.Column="0" Header="Original Deployment YAML">
+                            <TextBox x:Name="SAPConnectivityOriginalYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     IsReadOnly="True" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+
+                        <!-- Modified YAML -->
+                        <GroupBox Grid.Column="1" Header="Modifizierte Deployment YAML">
+                            <TextBox x:Name="SAPConnectivityModifiedYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+                    </Grid>
+                    
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0" Margin="0,10"/>
+                    
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="PersistentVolume">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolume" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="SMB Source Path:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SAPSMBSourcePathTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SAPPVNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="SAPPVYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateSAPPVYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateSAPPVYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="PersistentVolumeClaim">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolumeClaim" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="PVC Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SAPPVCNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SAPPVCVolumeNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="SAPPVCYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateSAPPVCYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateSAPPVCYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="Secret">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des Secret" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="Secret Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SAPSecretNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Benutzername:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="SAPUsernameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Passwort:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <PasswordBox x:Name="SAPSecretPasswordBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="SAPSecretYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateSAPSecretYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateSAPSecretYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+
+            <!-- User Management Content -->
+            <Grid x:Name="UserManagementContent" Visibility="Collapsed">
+                <Frame x:Name="UserManagementFrame" NavigationUIVisibility="Hidden" />
+            </Grid>
+
+            <!-- Settings Content -->
+            <Grid x:Name="SettingsContent" Visibility="Collapsed" Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Einstellungen" FontSize="24"/>
+
+                <Grid Grid.Row="1" Margin="0,20,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="OC Tool Folder:" VerticalAlignment="Center"/>
+                    <TextBox x:Name="OcToolFolderTextBox" Grid.Column="1" Margin="10,0"/>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button x:Name="BrowseOcToolFolderButton" Content="Durchsuchen" Margin="0,0,10,0" Click="BrowseOcToolFolderButton_Click"/>
+                        <Button x:Name="SaveOcToolFolderButton" Content="Speichern" Click="SaveOcToolFolderButton_Click"/>
+                    </StackPanel>
+                </Grid>
+                <TextBlock x:Name="SettingsMessageText" Grid.Row="2" Margin="0,10,0,0" Foreground="Green"/>
+            </Grid>
+
+            <!-- Service Route Rolebinding Content -->
+            <Grid x:Name="ServiceRouteRolebindingContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Service, Route und Rolebinding Verwaltung" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Verwaltung von Services, Routes und RoleBindings. Konfiguration von Netzwerkzugriff und Berechtigungen." 
+                              TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <Grid Grid.Row="1">
+                    <!-- Hier kommt der spezifische Inhalt für Service, Route, Rolebinding -->
+                </Grid>
+            </Grid>
+
+            <!-- Automation Manager Content -->
+            <Grid x:Name="AutomationManagerContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="Create Automation Manager" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Bearbeiten der Deployment YAML zum Hinzufügen von Automation Manager Ressourcen und Erstellen von PVs, Service und Route." 
+                              TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <!-- Fehlermeldung für Automation Manager -->
+                <TextBlock x:Name="AutomationManagerErrorMessage" Grid.Row="1" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+                
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="AutomationManagerCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <!-- Neue Buttons in der ersten Zeile -->
+                    <Button x:Name="CreateAutomationManagerPVsButton" Grid.Column="1" Grid.Row="0" Content="PVs/Service/Route erstellen" 
+                          Width="180" Height="30" Margin="0,0,10,0" Click="CreateAutomationManagerPVsButton_Click"/>
+                    
+                    <Button x:Name="DeployAllAutomationManagerYamlsButton" Grid.Column="2" Grid.Row="0" Content="Alle YAMLs deployen" 
+                          Width="180" Height="30" Margin="0,0,10,0" Click="DeployAllAutomationManagerYamlsButton_Click" IsEnabled="True"/>
+                          
+                    <!-- Checkbox zur Bestätigung -->
+                    <CheckBox x:Name="AutomationManagerDeployedCheckbox" Grid.Column="3" Grid.Row="0" Content="AM im MES deployed" 
+                             VerticalAlignment="Center" IsEnabled="False" Checked="AutomationManagerDeployedCheckbox_Checked"/>
+                    
+                    <!-- Zweite Zeile mit den ursprünglichen Buttons, die erst nach der Checkbox aktiviert werden -->
+                    <Button x:Name="LoadAutomationManagerButton" Grid.Column="1" Grid.Row="1" Content="Deployment laden" 
+                          Width="180" Height="30" Margin="0,10,10,0" Click="LoadAutomationManagerButton_Click" IsEnabled="False"/>
+                    
+                    <Button x:Name="ConfigureAutomationManagerYamlButton" Grid.Column="2" Grid.Row="1" Content="YAML konfigurieren" 
+                          Width="180" Height="30" Margin="0,10,10,0" Click="ConfigureAutomationManagerYamlButton_Click" IsEnabled="False"/>
+                      
+                    <Button x:Name="ApplyAutomationManagerChangesButton" Grid.Column="3" Grid.Row="1" Content="Änderungen anwenden" 
+                          Width="180" Height="30" Margin="0,10,0,0" Click="ApplyAutomationManagerChangesButton_Click" IsEnabled="False"/>
+                </Grid>
+                
+                <Grid Grid.Row="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Konfigurationsbereich -->
+                    <GroupBox Grid.Row="0" Header="Automation Manager Konfiguration" Margin="0,0,0,10">
+                        <Grid Margin="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Text="Automation Manager Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <TextBox x:Name="AutomationManagerNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,10,5" Text="am01"/>
+                            
+                            <TextBlock Text="Port:" Grid.Row="0" Grid.Column="2" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <TextBox x:Name="AutomationManagerPortTextBox" Grid.Row="0" Grid.Column="3" Margin="0,0,0,5" Text="4840" PreviewTextInput="NumberValidationTextBox"/>
+                            
+                            <TextBlock Text="Projekt Auswahl:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ProjectSelectionComboBox" Grid.Row="1" Grid.Column="1" Margin="0,0,10,5">
+                                <ComboBoxItem Content="Template"/>
+                                <ComboBoxItem Content="ATO"/>
+                                <ComboBoxItem Content="Active"/>
+                                <ComboBoxItem Content="SJL"/>
+                                <ComboBoxItem Content="BEM"/>
+                            </ComboBox>
+                            
+                            <TextBlock Text="Cluster Auswahl:" Grid.Row="1" Grid.Column="2" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ClusterSelectionComboBox" Grid.Row="1" Grid.Column="3" Margin="0,0,0,5">
+                                <ComboBoxItem Content="DEV"/>
+                                <ComboBoxItem Content="QAS"/>
+                                <ComboBoxItem Content="PRD"/>
+                            </ComboBox>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Original YAML -->
+                        <GroupBox Grid.Column="0" Header="Original Deployment YAML">
+                            <TextBox x:Name="AutomationManagerOriginalYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     IsReadOnly="True" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+
+                        <!-- Modified YAML -->
+                        <GroupBox Grid.Column="1" Header="Modifizierte Deployment YAML">
+                            <TextBox x:Name="AutomationManagerModifiedYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+                    </Grid>
+                    
+                    <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0" Margin="0,10"/>
+                    
+                    <TabControl Grid.Row="3">
+                        <TabItem Header="PersistentVolume - Logs">
+                            <TextBox x:Name="AutomationManagerPV1YamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        
+                        <TabItem Header="PersistentVolume - Persistency">
+                            <TextBox x:Name="AutomationManagerPV2YamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        
+                        <TabItem Header="Service">
+                            <TextBox x:Name="AutomationManagerServiceYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                        
+                        <TabItem Header="Route">
+                            <TextBox x:Name="AutomationManagerRouteYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"
+                                     IsReadOnly="True"/>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+
+            <!-- Monitoring Content -->
+            <Grid x:Name="MonitoringContent" Visibility="Collapsed">
+                <TextBlock Text="Monitoring" FontSize="24"/>
+            </Grid>
+
+            <!-- Firmware Volume Content -->
+            <Grid x:Name="FirmwareVolumeContent" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="Create Firmware Volume" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Bearbeiten der Deployment YAML zum Hinzufügen von Firmware Volumes und Erstellen von PV, PVC und Secret." 
+                              TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+                
+                <!-- Fehlermeldung speziell für Firmware Volume -->
+                <TextBlock x:Name="FirmwareErrorMessage" Grid.Row="1" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+                
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Aktuelles Projekt: " FontWeight="Bold"/>
+                        <TextBlock x:Name="FirmwareCurrentProjectText"/>
+                    </StackPanel>
+                    
+                    <Button x:Name="ConfigureFirmwareYamlButton" Grid.Column="1" Content="YAML konfigurieren" 
+                          Width="160" Height="30" Margin="0,0,10,0" Click="ConfigureFirmwareYamlButton_Click"/>
+                      
+                    <Button x:Name="ApplyFirmwareChangesButton" Grid.Column="2" Content="Änderungen anwenden" 
+                          Width="160" Height="30" Click="ApplyFirmwareChangesButton_Click"/>
+                </Grid>
+                
+                <Grid Grid.Row="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Original YAML -->
+                        <GroupBox Grid.Column="0" Header="Original Deployment YAML">
+                            <TextBox x:Name="FirmwareOriginalYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     IsReadOnly="True" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+
+                        <!-- Modified YAML -->
+                        <GroupBox Grid.Column="1" Header="Modifizierte Deployment YAML">
+                            <TextBox x:Name="FirmwareModifiedYamlTextBox" 
+                                     FontFamily="Consolas" 
+                                     TextWrapping="Wrap" 
+                                     VerticalScrollBarVisibility="Auto" 
+                                     HorizontalScrollBarVisibility="Auto"/>
+                        </GroupBox>
+                    </Grid>
+                    
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="#E0E0E0" Margin="0,10"/>
+                    
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="PersistentVolume">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolume" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="SMB Source Path:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="FirmwareSMBSourcePathTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="FirmwarePVNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="FirmwarePVYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateFirmwarePVYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateFirmwarePVYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="PersistentVolumeClaim">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des PersistentVolumeClaim" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="PVC Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="FirmwarePVCNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Volume Name:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="FirmwarePVCVolumeNameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="FirmwarePVCYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateFirmwarePVCYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateFirmwarePVCYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <TabItem Header="Secret">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Konfiguration des Secret" FontWeight="Bold" Margin="0,0,0,10"/>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Text="Secret Name:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="FirmwareSecretNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,5" IsReadOnly="True"/>
+                                    
+                                    <TextBlock Text="Benutzername:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <TextBox x:Name="FirmwareUsernameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,5"/>
+                                    
+                                    <TextBlock Text="Passwort:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
+                                    <PasswordBox x:Name="FirmwareSecretPasswordBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,5"/>
+                                </Grid>
+                                
+                                <TextBox x:Name="FirmwareSecretYamlTextBox" 
+                                         Grid.Row="2" 
+                                         FontFamily="Consolas" 
+                                         TextWrapping="Wrap" 
+                                         VerticalScrollBarVisibility="Auto" 
+                                         HorizontalScrollBarVisibility="Auto" 
+                                         Margin="0,10" 
+                                         IsReadOnly="True"/>
+                                         
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="GenerateFirmwareSecretYamlButton" Content="YAML erstellen" 
+                                          Width="120" Click="GenerateFirmwareSecretYamlButton_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,1722 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Linq;
+using System.Threading;
+using OpenshiftOPSCenter.App.Models;
+
+namespace OpenshiftOPSCenter.App.Services
+{
+    public class OpenShiftService
+    {
+        private readonly string _ocPath;
+        private string _currentContext = string.Empty;
+        private readonly ILoggingService _loggingService;
+
+        public OpenShiftService()
+        {
+            _ocPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "oc", "oc.exe");
+            _loggingService = new LoggingService();
+            _loggingService.LogInfo($"OC-Tool Pfad: {_ocPath}");
+        }
+
+        public async Task<(bool success, string message)> LoginToCluster(string clusterUrl, string username, string password)
+        {
+            try
+            {
+                // Stelle sicher, dass die URL HTTPS verwendet
+                if (!clusterUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    clusterUrl = clusterUrl.Replace("http://", "https://");
+                }
+
+                _loggingService.LogInfo($"Versuche Anmeldung am Cluster {clusterUrl} mit Benutzer {username}");
+                
+                if (!File.Exists(_ocPath))
+                {
+                    var error = $"OC-Tool nicht gefunden unter: {_ocPath}";
+                    _loggingService.LogError(error);
+                    return (false, error);
+                }
+
+                // Prüfe zuerst die Verbindung zum Cluster
+                var testConnection = new ProcessStartInfo
+                {
+                    FileName = "ping",
+                    Arguments = new Uri(clusterUrl).Host,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = testConnection })
+                {
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+                    
+                    if (process.ExitCode != 0)
+                    {
+                        var error = $"Cluster {clusterUrl} ist nicht erreichbar. Bitte überprüfen Sie Ihre Netzwerkverbindung.";
+                        _loggingService.LogError(error);
+                        return (false, error);
+                    }
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"login {clusterUrl} -u {username} -p {password} --insecure-skip-tls-verify --loglevel=6",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    // Setze Umgebungsvariablen für Proxy, falls vorhanden
+                    EnvironmentVariables = 
+                    {
+                        ["HTTPS_PROXY"] = Environment.GetEnvironmentVariable("HTTPS_PROXY") ?? "",
+                        ["HTTP_PROXY"] = Environment.GetEnvironmentVariable("HTTP_PROXY") ?? "",
+                        ["NO_PROXY"] = Environment.GetEnvironmentVariable("NO_PROXY") ?? "localhost,127.0.0.1"
+                    }
+                };
+
+                _loggingService.LogInfo($"Starte OC-Befehl: {startInfo.FileName} {startInfo.Arguments}");
+                _loggingService.LogInfo($"Proxy-Einstellungen: HTTPS_PROXY={startInfo.EnvironmentVariables["HTTPS_PROXY"]}, HTTP_PROXY={startInfo.EnvironmentVariables["HTTP_PROXY"]}, NO_PROXY={startInfo.EnvironmentVariables["NO_PROXY"]}");
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            _loggingService.LogInfo($"OC Output: {e.Data}");
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _currentContext = await GetCurrentContext();
+                        _loggingService.LogInfo($"Erfolgreich angemeldet. Aktueller Context: {_currentContext}");
+                        return (true, "Anmeldung erfolgreich");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Anmeldung fehlgeschlagen. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler bei der Anmeldung: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        public async Task<(List<string> projects, string error)> GetProjects()
+        {
+            var projects = new List<string>();
+            try
+            {
+                _loggingService.LogInfo("Lade Projekte...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = "get projects -o jsonpath='{.items[*].metadata.name}'",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            _loggingService.LogInfo($"OC Output: {e.Data}");
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        // Entferne Anführungszeichen und bereinige die Ausgabe
+                        var cleanOutput = output.Trim().Trim('\'', '"');
+                        projects.AddRange(cleanOutput.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                        _loggingService.LogInfo($"Projekte erfolgreich geladen: {string.Join(", ", projects)}");
+                        return (projects, null);
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Laden der Projekte. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (projects, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Laden der Projekte: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (projects, errorMessage);
+            }
+        }
+
+        public async Task<(bool success, string message)> SwitchProject(string projectName)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Wechsle zu Projekt: {projectName}");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"project {projectName}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            _loggingService.LogInfo($"OC Output: {e.Data}");
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Erfolgreich zu Projekt {projectName} gewechselt");
+                        return (true, "Projektwechsel erfolgreich");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Projektwechsel. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Projektwechsel: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        private async Task<string> GetCurrentContext()
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = "config current-context",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            _loggingService.LogInfo($"OC Output: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    await process.WaitForExitAsync();
+
+                    return outputBuilder.ToString().Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                _loggingService.LogError($"Fehler beim Abrufen des aktuellen Contexts: {ex.Message}", ex);
+                return string.Empty;
+            }
+        }
+
+        public async Task<(List<Deployment> deployments, string error)> GetDeploymentsMinimal(string projectName)
+        {
+            var deployments = new List<Deployment>();
+            try
+            {
+                _loggingService.LogInfo($"Lade Deployments minimal für Projekt {projectName}...");
+                
+                // Zum angegebenen Projekt wechseln
+                var (switchSuccess, switchMessage) = await SwitchProject(projectName);
+                if (!switchSuccess)
+                {
+                    return (deployments, switchMessage);
+                }
+
+                // Deployment-Informationen abrufen
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = "get deployments -o json",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    {
+                        // JSON parsen und Deployment-Objekte erstellen
+                        using (JsonDocument doc = JsonDocument.Parse(output))
+                        {
+                            JsonElement root = doc.RootElement;
+                            JsonElement items = root.GetProperty("items");
+
+                            foreach (JsonElement item in items.EnumerateArray())
+                            {
+                                var deployment = new Deployment
+                                {
+                                    Name = item.GetProperty("metadata").GetProperty("name").GetString(),
+                                    Namespace = item.GetProperty("metadata").GetProperty("namespace").GetString(),
+                                    CreationTimestamp = DateTime.Parse(item.GetProperty("metadata").GetProperty("creationTimestamp").GetString())
+                                };
+                                
+                                // Spec/Replicas abfragen
+                                if (item.GetProperty("spec").TryGetProperty("replicas", out JsonElement replicas))
+                                {
+                                    deployment.Replicas = replicas.GetInt32();
+                                }
+                                
+                                // Status abfragen, falls vorhanden
+                                if (item.TryGetProperty("status", out JsonElement status))
+                                {
+                                    if (status.TryGetProperty("availableReplicas", out JsonElement availableReplicas))
+                                    {
+                                        deployment.AvailableReplicas = availableReplicas.GetInt32();
+                                    }
+                                    
+                                    // Status berechnen - geändert gemäß Anforderung
+                                    if (deployment.AvailableReplicas == 0)
+                                    {
+                                        deployment.Status = "STOP";
+                                    }
+                                    else
+                                    {
+                                        deployment.Status = "RUNNING";
+                                    }
+                                }
+                                
+                                deployments.Add(deployment);
+                            }
+                        }
+                        
+                        _loggingService.LogInfo($"Deployments erfolgreich geladen: {deployments.Count} gefunden");
+                        return (deployments, null);
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Laden der Deployments. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (deployments, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Laden der Deployments: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (deployments, errorMessage);
+            }
+        }
+
+        public async Task<(List<Deployment> deployments, string error)> GetDeployments(string projectName)
+        {
+            var deployments = new List<Deployment>();
+            try
+            {
+                _loggingService.LogInfo($"Lade Deployments für Projekt {projectName}...");
+                
+                // Zum angegebenen Projekt wechseln
+                var (switchSuccess, switchMessage) = await SwitchProject(projectName);
+                if (!switchSuccess)
+                {
+                    return (deployments, switchMessage);
+                }
+
+                // Deployment-Informationen abrufen
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = "get deployments -o json",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    {
+                        // JSON parsen und Deployment-Objekte erstellen
+                        using (JsonDocument doc = JsonDocument.Parse(output))
+                        {
+                            JsonElement root = doc.RootElement;
+                            JsonElement items = root.GetProperty("items");
+
+                            foreach (JsonElement item in items.EnumerateArray())
+                            {
+                                var deployment = new Deployment
+                                {
+                                    Name = item.GetProperty("metadata").GetProperty("name").GetString(),
+                                    Namespace = item.GetProperty("metadata").GetProperty("namespace").GetString(),
+                                    CreationTimestamp = DateTime.Parse(item.GetProperty("metadata").GetProperty("creationTimestamp").GetString())
+                                };
+                                
+                                // Spec/Replicas abfragen
+                                if (item.GetProperty("spec").TryGetProperty("replicas", out JsonElement replicas))
+                                {
+                                    deployment.Replicas = replicas.GetInt32();
+                                }
+                                
+                                // Status abfragen, falls vorhanden
+                                if (item.TryGetProperty("status", out JsonElement status))
+                                {
+                                    if (status.TryGetProperty("availableReplicas", out JsonElement availableReplicas))
+                                    {
+                                        deployment.AvailableReplicas = availableReplicas.GetInt32();
+                                    }
+                                    
+                                    // Status berechnen - geändert gemäß Anforderung
+                                    if (deployment.AvailableReplicas == 0)
+                                    {
+                                        deployment.Status = "STOP";
+                                    }
+                                    else
+                                    {
+                                        deployment.Status = "RUNNING";
+                                    }
+                                }
+                                
+                                // Zugehörige Pods laden
+                                var (pods, podError) = await GetPodsForDeployment(deployment.Name);
+                                if (pods != null)
+                                {
+                                    deployment.Pods = pods;
+                                }
+                                
+                                deployments.Add(deployment);
+                            }
+                        }
+                        
+                        _loggingService.LogInfo($"Deployments erfolgreich geladen: {deployments.Count} gefunden");
+                        return (deployments, null);
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Laden der Deployments. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (deployments, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Laden der Deployments: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (deployments, errorMessage);
+            }
+        }
+
+        public async Task<(List<Pod> pods, string error)> GetPodsForDeployment(string deploymentName)
+        {
+            var pods = new List<Pod>();
+            try
+            {
+                _loggingService.LogInfo($"Lade Pods für Deployment {deploymentName}...");
+                
+                // Zuerst versuchen wir, alle Pods im aktuellen Namespace zu holen
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = "get pods -o json",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    {
+                        // JSON parsen und Pod-Objekte erstellen
+                        using (JsonDocument doc = JsonDocument.Parse(output))
+                        {
+                            JsonElement root = doc.RootElement;
+                            JsonElement items = root.GetProperty("items");
+
+                            foreach (JsonElement item in items.EnumerateArray())
+                            {
+                                // Prüfe, ob der Pod zum Deployment gehört, indem wir den Namen überprüfen
+                                // Pods haben oft Namen im Format {deployment-name}-{random-id}
+                                var podName = item.GetProperty("metadata").GetProperty("name").GetString();
+                                
+                                // Füge den Pod nur hinzu, wenn sein Name mit dem Deployment-Namen beginnt
+                                if (podName != null && podName.StartsWith(deploymentName))
+                                {
+                                    var pod = new Pod
+                                    {
+                                        Name = podName,
+                                        CreationTimestamp = DateTime.Parse(item.GetProperty("metadata").GetProperty("creationTimestamp").GetString())
+                                    };
+                                    
+                                    // Status aus status/phase auslesen
+                                    if (item.TryGetProperty("status", out JsonElement status))
+                                    {
+                                        if (status.TryGetProperty("phase", out JsonElement phase))
+                                        {
+                                            pod.Status = phase.GetString() ?? "UNKNOWN";
+                                        }
+                                        else
+                                        {
+                                            pod.Status = "UNKNOWN";
+                                        }
+                                        
+                                        if (status.TryGetProperty("hostIP", out JsonElement hostIP))
+                                        {
+                                            pod.IP = hostIP.GetString();
+                                        }
+                                    }
+                                    
+                                    // Node-Information
+                                    if (item.GetProperty("spec").TryGetProperty("nodeName", out JsonElement nodeName))
+                                    {
+                                        pod.Node = nodeName.GetString();
+                                    }
+                                    
+                                    pods.Add(pod);
+                                }
+                            }
+                        }
+                        
+                        _loggingService.LogInfo($"Pods erfolgreich geladen: {pods.Count} gefunden für Deployment {deploymentName}");
+                        return (pods, null);
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Laden der Pods. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (pods, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Laden der Pods: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (pods, errorMessage);
+            }
+        }
+
+        public async Task<(bool success, string message)> ScaleDeployment(string deploymentName, int replicas)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Skaliere Deployment {deploymentName} auf {replicas} Replicas...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"scale deployment {deploymentName} --replicas={replicas}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Deployment {deploymentName} erfolgreich auf {replicas} Replicas skaliert.");
+                        return (true, $"Deployment {deploymentName} erfolgreich skaliert.");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Skalieren des Deployments. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Skalieren des Deployments: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        public async Task<(bool success, string message)> DeleteDeployment(string deploymentName)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Lösche Deployment {deploymentName}...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"delete deployment {deploymentName}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Deployment {deploymentName} erfolgreich gelöscht.");
+                        return (true, $"Deployment {deploymentName} erfolgreich gelöscht.");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Löschen des Deployments. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Löschen des Deployments: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        public async Task<(bool success, string message)> DeletePod(string podName)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Lösche Pod {podName}...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"delete pod {podName}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Pod {podName} erfolgreich gelöscht.");
+                        return (true, $"Pod {podName} erfolgreich gelöscht.");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Löschen des Pods. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Löschen des Pods: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        public async Task<(bool success, string message)> RestartDeployment(string deploymentName)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Starte Deployment {deploymentName} neu...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"rollout restart deployment {deploymentName}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Deployment {deploymentName} erfolgreich neu gestartet.");
+                        return (true, $"Deployment {deploymentName} erfolgreich neu gestartet.");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Neustarten des Deployments. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Neustarten des Deployments: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        // Hilfsmethode, um die aktuelle Speicherbelegung eines PVC zu ermitteln
+        private async Task<string> GetPVCUsage(string projectName, string pvcName)
+        {
+            try
+            {
+                // Da OpenShift keine direkte API für die Speicherbelegung bietet, 
+                // verwenden wir einen temporären Pod, um die PVC zu mounten und den Speicher abzufragen
+                var tempPodName = $"disk-usage-{Path.GetRandomFileName().Replace(".", "")}";
+                var createTempPodCmd = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"run {tempPodName} -n {projectName} --restart=Never -it --rm " +
+                               $"--image=busybox --overrides='{{\"spec\":{{\"volumes\":[{{\"name\":\"volume\",\"persistentVolumeClaim\":{{\"claimName\":\"{pvcName}\"}}}}],\"containers\":[{{\"name\":\"{tempPodName}\",\"image\":\"busybox\",\"command\":[\"sh\",\"-c\",\"df -h /mnt | grep -v Filesystem | head -1 | awk '{{print \\$5}}'  \"],\"volumeMounts\":[{{\"name\":\"volume\",\"mountPath\":\"/mnt\"}}]}}]}}}}' " +
+                               $"--attach -i",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = createTempPodCmd })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                    };
+
+                    _loggingService.LogInfo($"Prüfe Speicherbelegung für PVC {pvcName} mit temporärem Pod");
+                    
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    
+                    // Timeout nach 5 Sekunden setzen, um die Gesamtladezeit zu begrenzen
+                    var timeoutTask = Task.Delay(5000);
+                    var processTask = process.WaitForExitAsync();
+                    
+                    await Task.WhenAny(processTask, timeoutTask);
+                    
+                    if (!processTask.IsCompleted)
+                    {
+                        try { process.Kill(); } catch {}
+                        _loggingService.LogWarning($"Timeout beim Ermitteln der Speicherbelegung für PVC {pvcName}");
+                        return "Timeout";
+                    }
+
+                    var output = outputBuilder.ToString().Trim();
+                    
+                    if (!string.IsNullOrEmpty(output) && process.ExitCode == 0)
+                    {
+                        return output;
+                    }
+                    else
+                    {
+                        _loggingService.LogWarning($"Speicherbelegung für PVC {pvcName} konnte nicht ermittelt werden: {errorBuilder}");
+                        return "Nicht verfügbar";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _loggingService.LogError($"Fehler beim Ermitteln der Speicherbelegung für PVC {pvcName}: {ex.Message}", ex);
+                return "Nicht verfügbar";
+            }
+        }
+
+        // Method to get all PVCs in a project
+        public async Task<(List<PersistentVolumeClaim> pvcs, string error)> GetPersistentVolumeClaims(string projectName)
+        {
+            var pvcs = new List<PersistentVolumeClaim>();
+            try
+            {
+                _loggingService.LogInfo($"Lade PVCs für Projekt {projectName}...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"get pvc -n {projectName} -o json",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        var pvcList = JsonSerializer.Deserialize<OpenShiftResourceList>(output);
+                        
+                        if (pvcList != null && pvcList.items != null)
+                        {
+                            foreach (var item in pvcList.items)
+                            {
+                                var pvc = new PersistentVolumeClaim
+                                {
+                                    Name = item.metadata.name,
+                                    Namespace = item.metadata.namespaceName,
+                                    StorageClass = item.metadata.annotations != null && item.metadata.annotations.TryGetValue("volume.beta.kubernetes.io/storage-class", out var storageClass) 
+                                        ? storageClass : "standard",
+                                    Status = item.status.phase,
+                                    VolumeName = item.spec.volumeName,
+                                    Capacity = item.status.capacity != null && item.status.capacity.TryGetValue("storage", out var capacity) 
+                                        ? capacity : "Unknown",
+                                    AccessModes = item.spec.accessModes != null ? string.Join(", ", item.spec.accessModes) : "Unknown",
+                                    CreationTimestamp = item.metadata.creationTimestamp,
+                                    // Initialisiere mit "Wird geladen..." - wird später asynchron aktualisiert
+                                    UsedCapacity = "Wird geladen..."
+                                };
+                                
+                                pvcs.Add(pvc);
+                            }
+                        }
+                        
+                        _loggingService.LogInfo($"PVCs erfolgreich geladen: {pvcs.Count}");
+                        return (pvcs, null);
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Laden der PVCs. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (pvcs, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Laden der PVCs: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (pvcs, errorMessage);
+            }
+        }
+
+        // Neues Feature: Asynchrone Aktualisierung der PVC-Nutzungsdaten
+        public async Task UpdatePVCUsageDataAsync(List<PersistentVolumeClaim> pvcs, string projectName)
+        {
+            if (pvcs == null || pvcs.Count == 0 || string.IsNullOrEmpty(projectName))
+                return;
+            
+            _loggingService.LogInfo($"Starte asynchrone Aktualisierung der Speicherbelegung für {pvcs.Count} PVCs...");
+            
+            // Einfach für jedes PVC direkt einen statischen Wert setzen
+            foreach (var pvc in pvcs)
+            {
+                if (!string.IsNullOrEmpty(pvc.VolumeName))
+                {
+                    // Statt der tatsächlichen Abfrage setzen wir einen festen Wert
+                    pvc.UsedCapacity = "N/A (deaktiviert)";
+                }
+                else
+                {
+                    pvc.UsedCapacity = "N/A";
+                }
+            }
+            
+            _loggingService.LogInfo("Aktualisierung der PVC-Nutzungsdaten abgeschlossen");
+        }
+
+        // Method to get PVs for a specific project
+        public async Task<(List<PersistentVolume> pvs, string error)> GetPersistentVolumes()
+        {
+            var pvs = new List<PersistentVolume>();
+            try
+            {
+                // Zuerst das aktuelle Projekt ermitteln
+                string currentProject = await GetCurrentProjectName();
+                
+                if (string.IsNullOrEmpty(currentProject))
+                {
+                    return (pvs, "Kein aktuelles Projekt ausgewählt");
+                }
+                
+                _loggingService.LogInfo($"Lade PVs für Projekt {currentProject}...");
+                
+                // Zuerst die PVCs für das Projekt laden
+                var (pvcs, pvcError) = await GetPersistentVolumeClaims(currentProject);
+                
+                if (pvcError != null)
+                {
+                    return (pvs, pvcError);
+                }
+                
+                // Liste der Volume-Namen aus den PVCs extrahieren
+                var volumeNames = pvcs.Where(pvc => !string.IsNullOrEmpty(pvc.VolumeName))
+                                      .Select(pvc => pvc.VolumeName)
+                                      .ToList();
+                
+                if (volumeNames.Count == 0)
+                {
+                    _loggingService.LogInfo("Keine PVCs mit Volume-Namen im aktuellen Projekt gefunden.");
+                    return (pvs, null);
+                }
+                
+                // Alle PVs laden
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = "get pv -o json",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        var pvList = JsonSerializer.Deserialize<OpenShiftResourceList>(output);
+                        
+                        if (pvList != null && pvList.items != null)
+                        {
+                            foreach (var item in pvList.items)
+                            {
+                                // Nur PVs hinzufügen, die zu den PVCs im aktuellen Projekt gehören
+                                if (volumeNames.Contains(item.metadata.name))
+                                {
+                                    var pv = new PersistentVolume
+                                    {
+                                        Name = item.metadata.name,
+                                        StorageClass = item.spec.storageClassName,
+                                        Status = item.status.phase,
+                                        Capacity = item.spec.capacity != null && item.spec.capacity.TryGetValue("storage", out var capacity) 
+                                            ? capacity : "Unknown",
+                                        AccessModes = item.spec.accessModes != null ? string.Join(", ", item.spec.accessModes) : "Unknown",
+                                        ReclaimPolicy = item.spec.persistentVolumeReclaimPolicy,
+                                        ClaimRef = item.spec.claimRef != null ? $"{item.spec.claimRef.namespaceName}/{item.spec.claimRef.name}" : "",
+                                        CreationTimestamp = item.metadata.creationTimestamp
+                                    };
+                                    
+                                    pvs.Add(pv);
+                                }
+                            }
+                        }
+                        
+                        _loggingService.LogInfo($"PVs erfolgreich geladen: {pvs.Count} von {volumeNames.Count} gefunden");
+                        return (pvs, null);
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Laden der PVs. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (pvs, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Laden der PVs: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (pvs, errorMessage);
+            }
+        }
+
+        // Method to delete a PVC
+        public async Task<(bool success, string message)> DeletePersistentVolumeClaim(string pvcName, string projectName)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Lösche PVC {pvcName} in Projekt {projectName}...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"delete pvc {pvcName} -n {projectName}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"PVC {pvcName} erfolgreich gelöscht.");
+                        return (true, $"PVC {pvcName} erfolgreich gelöscht.");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Löschen des PVC. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Löschen des PVC: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        // Method to delete a PV
+        public async Task<(bool success, string message)> DeletePersistentVolume(string pvName)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Lösche PV {pvName}...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"delete pv {pvName}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"PV {pvName} erfolgreich gelöscht.");
+                        return (true, $"PV {pvName} erfolgreich gelöscht.");
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Löschen des PV. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return (false, errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Löschen des PV: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return (false, errorMessage);
+            }
+        }
+
+        public async Task<string> GetCurrentProjectName()
+        {
+            try
+            {
+                _loggingService.LogInfo("Ermittle aktuelles Projekt...");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = "project -q",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString().Trim();
+                    
+                    if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    {
+                        _loggingService.LogInfo($"Aktuelles Projekt: {output}");
+                        // Aktuelles Projekt für den Zugriff über Property speichern
+                        this.CurrentProject = output;
+                        return output;
+                    }
+                    else
+                    {
+                        _loggingService.LogWarning("Kein aktuelles Projekt gefunden.");
+                        return string.Empty;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _loggingService.LogError($"Fehler beim Ermitteln des aktuellen Projekts: {ex.Message}", ex);
+                return string.Empty;
+            }
+        }
+
+        // Property für den Zugriff auf das aktuelle Projekt
+        public string CurrentProject { get; private set; } = string.Empty;
+
+        // Methode zum Abrufen des Host-Deployment YAMLs
+        public async Task<string> GetHostDeploymentYamlAsync(string projectName)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Lade Host-Deployment YAML für Projekt: {projectName}");
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"get deployment host -n {projectName} -o yaml",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Host-Deployment YAML erfolgreich geladen");
+                        return output;
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Laden des Host-Deployment YAML. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        throw new Exception(errorMessage);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Laden des Host-Deployment YAML: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                throw;
+            }
+        }
+
+        // Methode zum Aktualisieren eines Deployments aus einem YAML
+        public async Task<bool> UpdateDeploymentFromYamlAsync(string projectName, string yamlContent)
+        {
+            try
+            {
+                _loggingService.LogInfo($"Aktualisiere Deployment in Projekt: {projectName}");
+                
+                // Erstelle eine temporäre YAML-Datei
+                string tempFile = Path.GetTempFileName() + ".yaml";
+                await File.WriteAllTextAsync(tempFile, yamlContent);
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"apply -f \"{tempFile}\" -n {projectName}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            _loggingService.LogInfo($"OC Output: {e.Data}");
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    // Lösche die temporäre Datei
+                    try
+                    {
+                        File.Delete(tempFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        _loggingService.LogWarning($"Konnte temporäre Datei nicht löschen: {ex.Message}");
+                    }
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Deployment erfolgreich aktualisiert: {output}");
+                        return true;
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Aktualisieren des Deployments. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Aktualisieren des Deployments: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return false;
+            }
+        }
+
+        // Methode zum Erstellen einer Ressource aus YAML
+        public async Task<bool> CreateResourceFromYamlAsync(string yamlContent)
+        {
+            try
+            {
+                _loggingService.LogInfo("Erstelle Ressource aus YAML");
+                
+                // Erstelle eine temporäre YAML-Datei
+                string tempFile = Path.GetTempFileName() + ".yaml";
+                await File.WriteAllTextAsync(tempFile, yamlContent);
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _ocPath,
+                    Arguments = $"create -f \"{tempFile}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    var outputBuilder = new StringBuilder();
+                    var errorBuilder = new StringBuilder();
+
+                    process.OutputDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            _loggingService.LogInfo($"OC Output: {e.Data}");
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) => 
+                    {
+                        if (e.Data != null)
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            _loggingService.LogError($"OC Error: {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    await process.WaitForExitAsync();
+
+                    // Lösche die temporäre Datei
+                    try
+                    {
+                        File.Delete(tempFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        _loggingService.LogWarning($"Konnte temporäre Datei nicht löschen: {ex.Message}");
+                    }
+
+                    var output = outputBuilder.ToString();
+                    var error = errorBuilder.ToString();
+
+                    if (process.ExitCode == 0)
+                    {
+                        _loggingService.LogInfo($"Ressource erfolgreich erstellt: {output}");
+                        return true;
+                    }
+                    else
+                    {
+                        var errorMessage = $"Fehler beim Erstellen der Ressource. Exit Code: {process.ExitCode}. Fehler: {error}";
+                        _loggingService.LogError(errorMessage);
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Fehler beim Erstellen der Ressource: {ex.Message}";
+                _loggingService.LogError(errorMessage, ex);
+                return false;
+            }
+        }
+
+        // Wrapper-Methoden mit Async-Suffix für die Multi-Projekt-Funktionalität
+        public async Task<List<string>> GetProjectsAsync(ClusterConfig config)
+        {
+            var (projects, error) = await GetProjects();
+            return projects ?? new List<string>();
+        }
+
+        public async Task<List<Pod>> GetPodsAsync(ClusterConfig config, string projectName)
+        {
+            // Zuerst zum Projekt wechseln
+            await SwitchProject(projectName);
+            
+            // Alle Deployments im Projekt holen
+            var (deployments, depError) = await GetDeployments(projectName);
+            
+            // Für jedes Deployment die Pods sammeln
+            var allPods = new List<Pod>();
+            foreach (var deployment in deployments)
+            {
+                var (pods, podError) = await GetPodsForDeployment(deployment.Name);
+                if (pods != null)
+                {
+                    allPods.AddRange(pods);
+                }
+            }
+            
+            return allPods;
+        }
+
+        public async Task<List<Deployment>> GetDeploymentsAsync(ClusterConfig config, string projectName)
+        {
+            // Zuerst zum Projekt wechseln
+            await SwitchProject(projectName);
+            
+            // Alle Deployments im Projekt holen
+            var (deployments, error) = await GetDeployments(projectName);
+            return deployments ?? new List<Deployment>();
+        }
+
+        public async Task<bool> ScaleDeploymentAsync(ClusterConfig config, string projectName, string deploymentName, int replicas)
+        {
+            // Zuerst zum Projekt wechseln
+            await SwitchProject(projectName);
+            
+            // Deployment skalieren
+            var (success, message) = await ScaleDeployment(deploymentName, replicas);
+            return success;
+        }
+
+        public async Task<bool> DeletePodAsync(ClusterConfig config, string projectName, string podName)
+        {
+            // Zuerst zum Projekt wechseln
+            await SwitchProject(projectName);
+            
+            // Pod löschen
+            var (success, message) = await DeletePod(podName);
+            return success;
+        }
+    }
+} 
