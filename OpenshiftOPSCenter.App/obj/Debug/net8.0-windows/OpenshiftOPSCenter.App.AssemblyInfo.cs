@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OpenshiftOPSCenter.App")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6df350d1d993ba175e38172a2b844b23a167b62b")]
 [assembly: System.Reflection.AssemblyProductAttribute("OpenshiftOPSCenter.App")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OpenshiftOPSCenter.App")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
